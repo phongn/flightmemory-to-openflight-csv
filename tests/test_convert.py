@@ -212,14 +212,22 @@ class TestComposeNote:
         result = _compose_note("", "", {"dep_airport": 5, "airline": 2})
         assert result == "[ratings: dep_airport=5, airline=2]"
 
+    def test_overall_rating_only(self):
+        assert _compose_note("", "", {}, overall=4) == "[ratings: overall=4]"
+
+    def test_overall_rating_precedes_per_entity_ratings(self):
+        result = _compose_note("", "", {"airline": 2}, overall=3)
+        assert result == "[ratings: overall=3, airline=2]"
+
     def test_all_fields(self):
         result = _compose_note(
             "Example user note.",
             "City of Nowhere",
             {"dep_airport": 5, "arr_airport": 3, "airline": 2, "airplane": 1},
+            overall=2,
         )
         assert result == (
             "Example user note. "
             "[plane: City of Nowhere] "
-            "[ratings: dep_airport=5, arr_airport=3, airline=2, airplane=1]"
+            "[ratings: overall=2, dep_airport=5, arr_airport=3, airline=2, airplane=1]"
         )

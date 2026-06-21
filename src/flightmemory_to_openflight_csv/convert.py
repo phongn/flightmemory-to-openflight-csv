@@ -34,6 +34,7 @@ REASON_MAP = {
     "personal": "L",
     "business": "B",
     "crew": "C",
+    "virtuell": "O",  # simulator/virtual flight
 }
 
 _STAR_RE = re.compile(r"/star_(\d)\.gif")
@@ -132,15 +133,24 @@ def parse_seat_cell(cell) -> tuple[str, str, str, str]:
     return seat, seat_type, cls, reason
 
 
-def _compose_note(user_note: str, plane_name: str, ratings: dict[str, int]) -> str:
+def _compose_note(
+    user_note: str,
+    plane_name: str,
+    ratings: dict[str, int],
+    overall: int | None = None,
+) -> str:
     """Compose the OpenFlights Note field from available metadata."""
     parts = []
     if user_note:
         parts.append(user_note)
     if plane_name:
         parts.append(f"[plane: {plane_name}]")
-    if ratings:
-        parts.append("[ratings: " + ", ".join(f"{k}={v}" for k, v in ratings.items()) + "]")
+    all_ratings = {}
+    if overall is not None:
+        all_ratings["overall"] = overall
+    all_ratings.update(ratings)
+    if all_ratings:
+        parts.append("[ratings: " + ", ".join(f"{k}={v}" for k, v in all_ratings.items()) + "]")
     return " ".join(parts)
 
 
@@ -178,6 +188,7 @@ def parse_flight(main_cells, dist_cells, dur_cells) -> Flight | None:
     user_note_span = main_cells[9].find("span", title=True)
     user_note = user_note_span["title"] if user_note_span else ""
 
+    overall = _star_rating(main_cells[0])
     ratings: dict[str, int] = {}
     for label, idx in (("dep_airport", 2), ("arr_airport", 4), ("airline", 6), ("airplane", 7)):
         r = _star_rating(main_cells[idx])
@@ -207,7 +218,7 @@ def parse_flight(main_cells, dist_cells, dur_cells) -> Flight | None:
         Plane=plane,
         Registration=registration,
         Trip="",
-        Note=_compose_note(user_note, plane_name, ratings),
+        Note=_compose_note(user_note, plane_name, ratings, overall),
         From_OID="",
         To_OID="",
         Airline_OID="",

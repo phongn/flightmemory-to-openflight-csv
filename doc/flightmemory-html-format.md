@@ -56,14 +56,22 @@ skipped with `i += 1`.
 
 ## Main row: cell-by-cell reference
 
-### Cell[0] — Row number
+### Cell[0] — Row number and optional overall impression
 
 ```html
+<!-- No overall rating set -->
 <td align="right" class="liste_gross">241<br/></td>
+
+<!-- Overall impression rating present -->
+<td align="right" class="liste_gross">239<br/>
+  <img height="18" src="/images/star_2.gif" title="Overall impression: bad" width="18"/>
+</td>
 ```
 
 The FlightMemory internal sequence number (highest = most recent).
-Not used in the output.
+When an overall impression rating has been entered, a star `<img>` appears
+after the sequence number. Extracted via `_star_rating(cells[0])` and
+recorded in the `Note` output field as `overall=N`.
 
 ---
 
@@ -256,13 +264,18 @@ Known seat class values and their OpenFlights mappings:
 | `EconomyPlus` | `P` |
 | `Economy` | `Y` |
 
-Known trip reason values:
+The middle line of `<small>` is the passenger role. Known values:
+`Passenger`, `Crew`, `Cockpit`. This line is skipped during parsing
+(it is not mapped to any OpenFlights field).
+
+Known trip reason values (last line of `<small>`):
 
 | FlightMemory | OpenFlights |
 |---|---|
 | `Personal` | `L` |
 | `Business` | `B` |
 | `Crew` | `C` |
+| `Virtuell` | `O` (Other; simulator/virtual flight) |
 
 ---
 
@@ -340,6 +353,26 @@ into the `Note` output field alongside the user note and plane name:
 ```
 Example note. [plane: Some Plane Name] [ratings: dep_airport=5, arr_airport=3, airline=2, airplane=1]
 ```
+
+---
+
+## Fields present in FlightMemory but absent from the table export
+
+The following fields exist in the FlightMemory data model (visible on the
+edit and detail pages) but do **not** appear in the FlightData table HTML
+and therefore cannot be extracted by this parser:
+
+| Field | Edit-page name | Notes |
+|---|---|---|
+| Rating sub-reasons | `bewertung_grund`, `bewert_grund_*` | One per entity (overall, dep airport, arr airport, airline, aircraft); stored but not rendered in the table |
+| Arrival date | `an_datum_eingabe` | The table only shows `+1` on the arrival time when the date differs from departure; the actual arrival date is not in the table HTML |
+
+The **overall impression** rating (`bewertung`) is present in the table
+HTML when set (cell[0] `<img>`) and is captured.
+
+The **arrival time** (`an_zeit_eingabe`) appears in cell[1] as the second
+text node after the departure time, but OpenFlights has no arrival-time
+field (arrival is implied by `Date + Duration`) so it is not used.
 
 ---
 
