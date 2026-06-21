@@ -212,7 +212,7 @@ tempCodeRunnerFile.py
 .pypirc
 
 # Generated converter output
-flights.csv
+*.csv
 
 # Marimo
 marimo/_static/

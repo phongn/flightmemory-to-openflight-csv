@@ -41,10 +41,10 @@ All pages are merged and sorted by date (most recent first) before writing.
 
 | Detail | Value |
 |---|---|
-| OpenFlights CSV revision targeted | 0.41 |
+| [OpenFlights CSV](https://openflights.org/help/csv.php) revision targeted | 0.41 |
 | FlightMemory export format tested | Site version as of 2026-06-21 |
 | Output encoding | UTF-8 with BOM (as required by OpenFlights) |
-| Output line endings | CRLF (RFC 4180) |
+| Output line endings | CRLF ([RFC 4180](https://datatracker.ietf.org/doc/html/rfc4180)) |
 
 All three FlightMemory account display settings that affect the export are handled:
 
