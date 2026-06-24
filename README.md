@@ -39,6 +39,38 @@ HTML and PDF files can be mixed freely. All are merged and sorted by date (most 
 | `FILE ...` | *(required)* | FlightMemory FlightData HTML exports and/or PDF exports |
 | `-o / --output` | `flights.csv` | Output CSV path |
 
+Each file is processed independently. An unreadable or unrecognised file is reported on stderr and skipped rather than aborting the run, and any per-record problems (e.g. an unrecognised date) are listed beneath that file's summary. The output CSV is **not** written when no flights parse at all, so a bad invocation never clobbers an existing file. The exit code is non-zero if any input failed.
+
+## Library usage
+
+The package is also a small library. The parsers return a `ParseResult` carrying the parsed flights and any non-fatal issues:
+
+```python
+from flightmemory_to_openflight_csv import (
+    parse_html_file, parse_pdf_file, write_openflights_csv, UnsupportedFileError,
+)
+
+try:
+    result = parse_html_file("FlightData 1.html")   # or parse_pdf_file(...)
+except UnsupportedFileError as e:
+    ...  # the file is not a FlightMemory export
+
+for issue in result.issues:                          # non-fatal, per-record
+    print(issue.location, issue.message)
+
+write_openflights_csv(result.flights, "flights.csv")
+```
+
+| Name | Description |
+|---|---|
+| `parse_html_file(path) -> ParseResult` | Parse an HTML export; raises `UnsupportedFileError` if it has no flight table |
+| `parse_pdf_file(path) -> ParseResult` | Parse a PDF export (needs the `pdf` extra); raises `UnsupportedFileError` if no rows are found |
+| `ParseResult` | `.flights: list[Flight]`, `.issues: list[ParseIssue]`, `.ok: bool` |
+| `ParseIssue` | `.location` (e.g. `"flight 239"`) and `.message` |
+| `write_openflights_csv(flights, path)` | Write a list of `Flight` dicts as OpenFlights CSV |
+
+Exceptions derive from `FlightMemoryError`: `UnsupportedFileError` (whole file unrecognised) and `RowParseError` (raised internally per row; surfaced as a `ParseIssue`).
+
 ## Format compatibility
 
 | Detail | Value |
