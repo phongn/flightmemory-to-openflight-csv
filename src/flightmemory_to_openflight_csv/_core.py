@@ -135,10 +135,14 @@ def parse_time(s: str) -> str:
 
 
 def parse_duration(s: str) -> str:
-    h, sep, m = s.strip().partition(":")
+    s = s.strip()
+    h, sep, m = s.partition(":")
     if not sep:
-        return s.strip()
-    return f"{int(h):02d}:{m}"
+        return s
+    try:
+        return f"{int(h):02d}:{m}"
+    except ValueError:
+        return s  # non-numeric hour — pass through rather than crash
 
 
 _MILES_PER_KM = 1.60934

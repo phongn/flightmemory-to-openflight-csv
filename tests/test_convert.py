@@ -62,6 +62,10 @@ class TestParseDuration:
         # Malformed input should pass through rather than crashing the run.
         assert parse_duration("invalid") == "invalid"
 
+    def test_non_numeric_hour_does_not_raise(self):
+        # A colon with a non-numeric hour must not crash the int() conversion.
+        assert parse_duration("ab:cd") == "ab:cd"
+
     def test_strips_whitespace(self):
         assert parse_duration("  5:10  ") == "05:10"
 
