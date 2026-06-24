@@ -179,7 +179,7 @@ def _parse_pdf_row(row_words: list[dict]) -> tuple[Flight, list[ParseIssue]]:
     return flight, issues
 
 
-def parse_pdf_file(path: Path) -> ParseResult:
+def parse_pdf_file(path: str | Path) -> ParseResult:
     """Parse a FlightMemory PDF export.
 
     Raise UnsupportedFileError if no flight rows are found anywhere in the
@@ -194,6 +194,8 @@ def parse_pdf_file(path: Path) -> ParseResult:
             "pdfplumber is required for PDF parsing. "
             "Install it with: pip install 'flightmemory-to-openflight-csv[pdf]'"
         )
+
+    path = Path(path)
 
     flights: list[Flight] = []
     issues: list[ParseIssue] = []

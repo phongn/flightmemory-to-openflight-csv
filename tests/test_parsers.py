@@ -410,6 +410,10 @@ class TestParseHtmlFile:
         assert f["Plane"] == ""
         assert f["Note"] == ""
 
+    def test_accepts_str_path(self):
+        result = parse_html_file(str(FIXTURES / "sample_flightdata.html"))
+        assert len(result.flights) == 2
+
     def test_non_flightmemory_file_raises(self, tmp_path):
         wrong = tmp_path / "notflightmemory.html"
         wrong.write_text("<html><body><p>not a flight log</p></body></html>")

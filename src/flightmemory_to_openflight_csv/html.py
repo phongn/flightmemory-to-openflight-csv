@@ -133,13 +133,14 @@ def _parse_flight(main_cells, dist_cells, dur_cells) -> tuple[Flight, list[Parse
     return flight, issues
 
 
-def parse_html_file(path: Path) -> ParseResult:
+def parse_html_file(path: str | Path) -> ParseResult:
     """Parse a FlightMemory HTML export.
 
     Raise UnsupportedFileError if the file contains no FlightMemory flight
     table. Individual rows that cannot be parsed are recorded as issues on the
     returned ParseResult rather than aborting the whole file.
     """
+    path = Path(path)
     with open(path, encoding="utf-8") as f:
         soup = BeautifulSoup(f.read(), "html.parser")
 
