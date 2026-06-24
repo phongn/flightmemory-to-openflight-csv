@@ -2,7 +2,8 @@
 
 Technical reference for the FlightMemory FlightData HTML export as
 observed on the site as of 2026-06-21. Intended for maintainers of the
-parser in `src/flightmemory_to_openflight_csv/convert.py`.
+parser in `src/flightmemory_to_openflight_csv/html.py` (shared helpers
+live in `_core.py`).
 
 ---
 
@@ -348,10 +349,11 @@ Pattern: `/images/star_(\d)\.gif`. The `title` attribute contains a
 human-readable label but the parser only uses the captured digit.
 
 Because OpenFlights has no dedicated rating fields, ratings are packed
-into the `Note` output field alongside the user note and plane name:
+into the `Note` output field alongside the user note and plane name. The
+overall impression (from cell[0]) leads the rating list when present:
 
 ```
-Example note. [plane: Some Plane Name] [ratings: dep_airport=5, arr_airport=3, airline=2, airplane=1]
+Example note. [plane: Some Plane Name] [ratings: overall=2, dep_airport=5, arr_airport=3, airline=2, airplane=1]
 ```
 
 ---

@@ -2,7 +2,8 @@
 
 Technical reference for the FlightMemory PDF export as observed on the
 site as of 2026-06-21. Intended for maintainers of the parser in
-`src/flightmemory_to_openflight_csv/pdf_parser.py`.
+`src/flightmemory_to_openflight_csv/pdf.py` (shared helpers live in
+`_core.py`).
 
 ---
 

@@ -1,6 +1,6 @@
 # flightmemory-to-openflight-csv
 
-Converts [FlightMemory](https://www.flightmemory.com/) HTML flight-data exports to the [OpenFlights](https://openflights.org/) personal flight log CSV format, ready for direct import.
+Converts [FlightMemory](https://www.flightmemory.com/) flight-data exports — HTML or PDF — to the [OpenFlights](https://openflights.org/) personal flight log CSV format, ready for direct import.
 
 ## Requirements
 
@@ -22,9 +22,12 @@ uv sync --extra pdf              # HTML + PDF support
 
 ## Exporting from FlightMemory
 
-1. Log in and go to **Flight Data**.
-2. Use **Save Page As → Webpage, HTML Only** for each page of results.
-3. Repeat for all pages (FlightMemory paginates at 50 flights per page).
+Log in and go to **Flight Data**, then export by either route:
+
+- **HTML** (one file per page): **Save Page As → Webpage, HTML Only**, repeated for each page (FlightMemory paginates at 50 flights per page).
+- **PDF** (one file, all flights): the **PDF File of FlightData** link.
+
+Star ratings are only present in the HTML export, so prefer it if you want those captured (see [Field mapping](#field-mapping)).
 
 ## Usage
 
@@ -92,7 +95,7 @@ All three FlightMemory account display settings that affect the export are handl
 
 | OpenFlights field | FlightMemory source | Notes |
 |---|---|---|
-| `Date` | Date / departure column | Normalised to `YYYY-MM-DD [HH:MM]`; departure time appended when recorded |
+| `Date` | Date column (date + departure time) | Normalised to `YYYY-MM-DD [HH:MM]`; departure time appended when recorded |
 | `From` | Departure IATA code | |
 | `To` | Arrival IATA code | |
 | `Flight_Number` | Airline column, second line | |
@@ -102,10 +105,11 @@ All three FlightMemory account display settings that affect the export are handl
 | `Seat` | Seat column, text before `/` | |
 | `Seat_Type` | Seat column, text after `/` | `Window`→`W`, `Aisle`→`A`, `Middle`→`M` |
 | `Class` | First line of seat details block | `First`→`F`, `Business`→`C`, `EconomyPlus`→`P`, `Economy`→`Y` |
-| `Reason` | Last line of seat details block | `Personal`→`L`, `Business`→`B`, `Crew`→`C` |
+| `Reason` | Last line of seat details block | `Personal`→`L`, `Business`→`B`, `Crew`→`C`, `Virtuell`→`O` |
 | `Plane` | Aircraft column, first line | |
 | `Registration` | Aircraft column, second line | When recorded |
-| `Trip`, `Note`, `*_OID` | — | Left empty; assigned by OpenFlights on import |
+| `Note` | User comment, plane name, star ratings | Comment verbatim, then `[plane: …]` and `[ratings: overall=N, …]` for data OpenFlights has no field for |
+| `Trip`, `*_OID` | — | Left empty; assigned by OpenFlights on import |
 
 ## Development
 
