@@ -1,22 +1,33 @@
 """Unit tests for the flightmemory_to_openflight_csv library."""
 
+from pathlib import Path
+
 import pytest
 from bs4 import BeautifulSoup
 
+from flightmemory_to_openflight_csv import parse_html_file
 from flightmemory_to_openflight_csv._core import (
     _compose_note,
     _star_rating,
+    normalize_distance,
     parse_date,
     parse_duration,
     parse_time,
 )
 from flightmemory_to_openflight_csv.html import _parse_seat_cell
-from flightmemory_to_openflight_csv.pdf import _parse_airplane, _parse_seat
+from flightmemory_to_openflight_csv.pdf import _parse_airplane, _parse_pdf_row, _parse_seat
+
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def _td(html: str):
     """Wrap an HTML snippet in a <td> and return the BS4 element."""
     return BeautifulSoup(f"<td>{html}</td>", "html.parser").find("td")
+
+
+def _word(text: str, x0: float, top: float) -> dict:
+    """Build a pdfplumber-style word dict (only the keys the parser reads)."""
+    return {"text": text, "x0": x0, "top": top}
 
 
 # ---------------------------------------------------------------------------
@@ -300,3 +311,136 @@ class TestParsePdfSeat:
         assert seat == "22B"
         assert seat_type == "W"
         assert cls == "C"
+
+
+# ---------------------------------------------------------------------------
+# normalize_distance
+# ---------------------------------------------------------------------------
+
+class TestNormalizeDistance:
+    def test_miles_passthrough(self):
+        assert normalize_distance("308", "mi") == "308"
+
+    def test_strips_thousands_comma(self):
+        assert normalize_distance("2,583", "mi") == "2583"
+
+    def test_km_to_miles(self):
+        assert normalize_distance("4157", "km") == "2583"
+
+    def test_empty_value(self):
+        assert normalize_distance("", "km") == ""
+
+
+# ---------------------------------------------------------------------------
+# parse_html_file (end-to-end against a fixture)
+# ---------------------------------------------------------------------------
+
+class TestParseHtmlFile:
+    def test_returns_both_flights_in_document_order(self):
+        flights = parse_html_file(FIXTURES / "sample_flightdata.html")
+        assert [f["From"] for f in flights] == ["AAA", "CCC"]
+
+    def test_fully_populated_flight(self):
+        flights = parse_html_file(FIXTURES / "sample_flightdata.html")
+        assert flights[0] == {
+            "Date": "2024-12-31 09:00",
+            "From": "AAA",
+            "To": "BBB",
+            "Flight_Number": "123",
+            "Airline": "Test Air",
+            "Distance": "1000",
+            "Duration": "02:30",
+            "Seat": "12A",
+            "Seat_Type": "W",
+            "Class": "C",
+            "Reason": "L",
+            "Plane": "Boeing 737",
+            "Registration": "N12345",
+            "Trip": "",
+            "Note": (
+                "Great flight. [plane: Spirit of Testing] "
+                "[ratings: overall=3, dep_airport=5, arr_airport=4, airline=2, airplane=1]"
+            ),
+            "From_OID": "",
+            "To_OID": "",
+            "Airline_OID": "",
+            "Plane_OID": "",
+        }
+
+    def test_sparse_flight_year_only_date_and_km(self):
+        flights = parse_html_file(FIXTURES / "sample_flightdata.html")
+        f = flights[1]
+        assert f["Date"] == "2010"          # year-only, passed through
+        assert f["Airline"] == "Budget Wings"
+        assert f["Flight_Number"] == ""
+        assert f["Distance"] == "311"        # 500 km → miles
+        assert f["Duration"] == "01:00"
+        assert f["Reason"] == "L"            # 2-line <small>, reason on last line
+        assert f["Class"] == ""
+        assert f["Plane"] == ""
+        assert f["Note"] == ""
+
+
+# ---------------------------------------------------------------------------
+# _parse_pdf_row (synthetic words at the documented column x0 ranges)
+# ---------------------------------------------------------------------------
+
+class TestParsePdfRow:
+    def _fully_populated_words(self) -> list[dict]:
+        # One flight laid out across four text lines (top 100/110/120/130),
+        # with each word's x0 inside its documented column boundary.
+        return [
+            _word("42", 15, 100),
+            _word("12-31-2023", 31, 100), _word("10:24", 31, 110), _word("pm", 53, 110),
+            _word("06:48", 31, 120), _word("am", 53, 120), _word("+1", 67, 120),
+            _word("AAA", 79, 100),
+            _word("Alphaville", 102, 100), _word("Alpha", 102, 120), _word("International", 120, 120),
+            _word("BBB", 164, 100),
+            _word("Betatown", 187, 100),
+            _word("2,000", 251, 100), _word("mi", 274, 100),
+            _word("5:24", 260, 110), _word("h", 278, 110),
+            _word("Test", 288, 100), _word("Air", 310, 100), _word("456", 289, 110),
+            _word("Airbus", 359, 100), _word("321", 384, 100),
+            _word("N99999", 359, 110),
+            _word("Spirit", 359, 120), _word("of", 380, 120), _word("Testing", 395, 120),
+            _word("Personal", 359, 130),
+            _word("3A", 442, 100), _word("Window", 442, 110),
+            _word("Business", 442, 120), _word("Passenger", 442, 130),
+            _word("Broken", 487, 100), _word("seat.", 511, 100),
+        ]
+
+    def test_fully_populated_row(self):
+        assert _parse_pdf_row(self._fully_populated_words()) == {
+            "Date": "2023-12-31 22:24",
+            "From": "AAA",
+            "To": "BBB",
+            "Flight_Number": "456",
+            "Airline": "Test Air",
+            "Distance": "2000",
+            "Duration": "05:24",
+            "Seat": "3A",
+            "Seat_Type": "W",
+            "Class": "C",
+            "Reason": "L",
+            "Plane": "Airbus 321",
+            "Registration": "N99999",
+            "Trip": "",
+            "Note": "Broken seat. [plane: Spirit of Testing]",
+            "From_OID": "",
+            "To_OID": "",
+            "Airline_OID": "",
+            "Plane_OID": "",
+        }
+
+    def test_km_distance_converted(self):
+        words = [
+            _word("1", 15, 100),
+            _word("2015", 31, 100),
+            _word("1,000", 251, 100), _word("km", 274, 100),
+        ]
+        flight = _parse_pdf_row(words)
+        assert flight["Date"] == "2015"
+        assert flight["Distance"] == "621"   # 1000 km → miles
+
+    def test_no_date_returns_none(self):
+        assert _parse_pdf_row([_word("42", 15, 100)]) is None
