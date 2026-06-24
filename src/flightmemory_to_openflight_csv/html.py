@@ -12,6 +12,8 @@ from ._core import (
     Flight,
     _compose_note,
     _star_rating,
+    make_flight,
+    normalize_distance,
     parse_date,
     parse_duration,
     parse_time,
@@ -92,15 +94,12 @@ def _parse_flight(main_cells, dist_cells, dur_cells) -> Flight | None:
         if r is not None:
             ratings[label] = r
 
-    distance_raw = dist_cells[0].get_text(strip=True).replace(",", "")
-    dist_unit = dist_cells[1].get_text(strip=True)
-    if dist_unit == "km" and distance_raw:
-        distance = str(round(float(distance_raw) / 1.60934))
-    else:
-        distance = distance_raw
+    distance = normalize_distance(
+        dist_cells[0].get_text(strip=True), dist_cells[1].get_text(strip=True)
+    )
     duration = parse_duration(dur_cells[0].get_text(strip=True))
 
-    return Flight(
+    return make_flight(
         Date=date,
         From=dep,
         To=arr,
@@ -114,12 +113,7 @@ def _parse_flight(main_cells, dist_cells, dur_cells) -> Flight | None:
         Reason=reason,
         Plane=plane,
         Registration=registration,
-        Trip="",
         Note=_compose_note(user_note, plane_name, ratings, overall),
-        From_OID="",
-        To_OID="",
-        Airline_OID="",
-        Plane_OID="",
     )
 
 

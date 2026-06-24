@@ -11,6 +11,8 @@ from ._core import (
     SEAT_TYPE_MAP,
     Flight,
     _compose_note,
+    make_flight,
+    normalize_distance,
     parse_date,
     parse_duration,
     parse_time,
@@ -129,12 +131,8 @@ def _parse_pdf_row(row_words: list[dict]) -> Flight | None:
     duration = ""
     if dist_ln:
         parts = dist_ln[0].split()
-        dist_val = parts[0].replace(",", "") if parts else ""
-        dist_unit = parts[1] if len(parts) > 1 else "mi"
-        if dist_unit == "km" and dist_val:
-            distance = str(round(float(dist_val) / 1.60934))
-        else:
-            distance = dist_val
+        if parts:
+            distance = normalize_distance(parts[0], parts[1] if len(parts) > 1 else "mi")
     if len(dist_ln) > 1:
         dur_parts = dist_ln[1].split()
         if dur_parts:
@@ -149,7 +147,7 @@ def _parse_pdf_row(row_words: list[dict]) -> Flight | None:
 
     user_note = " ".join(_lines(row_words, "comment"))
 
-    return Flight(
+    return make_flight(
         Date=date,
         From=dep,
         To=arr,
@@ -163,12 +161,7 @@ def _parse_pdf_row(row_words: list[dict]) -> Flight | None:
         Reason=reason,
         Plane=plane,
         Registration=registration,
-        Trip="",
         Note=_compose_note(user_note, plane_name, {}, None),
-        From_OID="",
-        To_OID="",
-        Airline_OID="",
-        Plane_OID="",
     )
 
 

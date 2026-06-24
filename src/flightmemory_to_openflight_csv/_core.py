@@ -58,6 +58,51 @@ class Flight(TypedDict):
     Plane_OID: str
 
 
+def make_flight(
+    *,
+    Date: str = "",
+    From: str = "",
+    To: str = "",
+    Flight_Number: str = "",
+    Airline: str = "",
+    Distance: str = "",
+    Duration: str = "",
+    Seat: str = "",
+    Seat_Type: str = "",
+    Class: str = "",
+    Reason: str = "",
+    Plane: str = "",
+    Registration: str = "",
+    Note: str = "",
+) -> Flight:
+    """Build a Flight, defaulting the OpenFlights-assigned fields to empty.
+
+    Trip and the four *_OID fields are populated by OpenFlights on import,
+    so they are always written empty by this converter.
+    """
+    return Flight(
+        Date=Date,
+        From=From,
+        To=To,
+        Flight_Number=Flight_Number,
+        Airline=Airline,
+        Distance=Distance,
+        Duration=Duration,
+        Seat=Seat,
+        Seat_Type=Seat_Type,
+        Class=Class,
+        Reason=Reason,
+        Plane=Plane,
+        Registration=Registration,
+        Trip="",
+        Note=Note,
+        From_OID="",
+        To_OID="",
+        Airline_OID="",
+        Plane_OID="",
+    )
+
+
 def _star_rating(cell) -> int | None:
     """Return the star rating (1–5) from the first <img> in a cell, or None."""
     img = cell.find("img")
@@ -94,6 +139,17 @@ def parse_duration(s: str) -> str:
     if not sep:
         return s.strip()
     return f"{int(h):02d}:{m}"
+
+
+_MILES_PER_KM = 1.60934
+
+
+def normalize_distance(value: str, unit: str) -> str:
+    """Return the distance in miles. FlightMemory exports either mi or km."""
+    value = value.replace(",", "")
+    if unit == "km" and value:
+        return str(round(float(value) / _MILES_PER_KM))
+    return value
 
 
 def _compose_note(
