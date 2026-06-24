@@ -1,103 +1,21 @@
-"""Convert FlightMemory HTML exports to OpenFlights CSV format."""
+"""Parse FlightMemory HTML exports into Flight records."""
 
-import argparse
-import csv
-import re
 import sys
-from datetime import datetime
 from pathlib import Path
-from typing import TypedDict
 
 from bs4 import BeautifulSoup
 
-FIELDNAMES = [
-    "Date", "From", "To", "Flight_Number", "Airline", "Distance", "Duration",
-    "Seat", "Seat_Type", "Class", "Reason", "Plane", "Registration",
-    "Trip", "Note", "From_OID", "To_OID", "Airline_OID", "Plane_OID",
-]
-
-CLASS_MAP = {
-    "first": "F",
-    "business": "C",
-    "economyplus": "P",
-    "premium economy": "P",
-    "economy": "Y",
-}
-
-SEAT_TYPE_MAP = {
-    "window": "W",
-    "aisle": "A",
-    "middle": "M",
-}
-
-REASON_MAP = {
-    "personal": "L",
-    "business": "B",
-    "crew": "C",
-    "virtuell": "O",  # simulator/virtual flight
-}
-
-_STAR_RE = re.compile(r"/star_(\d)\.gif")
-
-
-class Flight(TypedDict):
-    Date: str
-    From: str
-    To: str
-    Flight_Number: str
-    Airline: str
-    Distance: str
-    Duration: str
-    Seat: str
-    Seat_Type: str
-    Class: str
-    Reason: str
-    Plane: str
-    Registration: str
-    Trip: str
-    Note: str
-    From_OID: str
-    To_OID: str
-    Airline_OID: str
-    Plane_OID: str
-
-
-def _star_rating(cell) -> int | None:
-    """Return the star rating (1–5) from the first <img> in a cell, or None."""
-    img = cell.find("img")
-    if img:
-        m = _STAR_RE.search(img.get("src", ""))
-        if m:
-            return int(m.group(1))
-    return None
-
-
-def parse_date(s: str) -> str:
-    s = s.strip()
-    for fmt in ("%m-%d-%Y", "%d.%m.%Y"):
-        try:
-            return datetime.strptime(s, fmt).strftime("%Y-%m-%d")
-        except ValueError:
-            continue
-    return s  # year-only ("YYYY") — OpenFlights accepts this format
-
-
-def parse_time(s: str) -> str:
-    """Normalise a 12- or 24-hour time string to HH:MM."""
-    s = s.strip()
-    for fmt in ("%I:%M %p", "%H:%M"):
-        try:
-            return datetime.strptime(s, fmt).strftime("%H:%M")
-        except ValueError:
-            continue
-    return ""
-
-
-def parse_duration(s: str) -> str:
-    h, sep, m = s.strip().partition(":")
-    if not sep:
-        return s.strip()
-    return f"{int(h):02d}:{m}"
+from ._core import (
+    CLASS_MAP,
+    REASON_MAP,
+    SEAT_TYPE_MAP,
+    Flight,
+    _compose_note,
+    _star_rating,
+    parse_date,
+    parse_duration,
+    parse_time,
+)
 
 
 def parse_seat_cell(cell) -> tuple[str, str, str, str]:
@@ -133,28 +51,7 @@ def parse_seat_cell(cell) -> tuple[str, str, str, str]:
     return seat, seat_type, cls, reason
 
 
-def _compose_note(
-    user_note: str,
-    plane_name: str,
-    ratings: dict[str, int],
-    overall: int | None = None,
-) -> str:
-    """Compose the OpenFlights Note field from available metadata."""
-    parts = []
-    if user_note:
-        parts.append(user_note)
-    if plane_name:
-        parts.append(f"[plane: {plane_name}]")
-    all_ratings = {}
-    if overall is not None:
-        all_ratings["overall"] = overall
-    all_ratings.update(ratings)
-    if all_ratings:
-        parts.append("[ratings: " + ", ".join(f"{k}={v}" for k, v in all_ratings.items()) + "]")
-    return " ".join(parts)
-
-
-def parse_flight(main_cells, dist_cells, dur_cells) -> Flight | None:
+def _parse_flight(main_cells, dist_cells, dur_cells) -> Flight | None:
     nobr = main_cells[1].find("nobr")
     if not nobr:
         return None
@@ -227,6 +124,7 @@ def parse_flight(main_cells, dist_cells, dur_cells) -> Flight | None:
 
 
 def parse_html_file(path: Path) -> list[Flight]:
+    """Parse a FlightMemory HTML export and return a list of Flight records."""
     with open(path, encoding="utf-8") as f:
         soup = BeautifulSoup(f.read(), "html.parser")
 
@@ -248,7 +146,7 @@ def parse_html_file(path: Path) -> list[Flight]:
             dist_cells = rows[i + 1].find_all("td", recursive=False)
             dur_cells = rows[i + 2].find_all("td", recursive=False)
             if len(dist_cells) == 2 and len(dur_cells) == 2:
-                flight = parse_flight(cells, dist_cells, dur_cells)
+                flight = _parse_flight(cells, dist_cells, dur_cells)
                 if flight:
                     flights.append(flight)
                 i += 3
@@ -256,35 +154,3 @@ def parse_html_file(path: Path) -> list[Flight]:
         i += 1
 
     return flights
-
-
-def write_openflights_csv(flights: list[Flight], output: Path) -> None:
-    """Write flights to an OpenFlights-compatible CSV file."""
-    with open(output, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=FIELDNAMES)
-        writer.writeheader()
-        writer.writerows(flights)
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Convert FlightMemory exports (HTML or PDF) to OpenFlights CSV."
-    )
-    parser.add_argument("files", nargs="+", type=Path, metavar="FILE")
-    parser.add_argument("-o", "--output", type=Path, default=Path("flights.csv"))
-    args = parser.parse_args()
-
-    # Import here to avoid a hard dependency at module load time.
-    from .pdf_parser import parse_pdf_file
-
-    all_flights: list[Flight] = []
-    for path in args.files:
-        if path.suffix.lower() == ".pdf":
-            flights = parse_pdf_file(path)
-        else:
-            flights = parse_html_file(path)
-        all_flights.extend(flights)
-
-    all_flights.sort(key=lambda f: f["Date"], reverse=True)
-    write_openflights_csv(all_flights, args.output)
-    print(f"Wrote {len(all_flights)} flights to {args.output}", file=sys.stderr)

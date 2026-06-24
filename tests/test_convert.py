@@ -1,17 +1,17 @@
-"""Unit tests for flightmemory_to_openflight_csv.convert and pdf_parser."""
+"""Unit tests for the flightmemory_to_openflight_csv library."""
 
 import pytest
 from bs4 import BeautifulSoup
 
-from flightmemory_to_openflight_csv.convert import (
+from flightmemory_to_openflight_csv._core import (
     _compose_note,
     _star_rating,
     parse_date,
     parse_duration,
-    parse_seat_cell,
     parse_time,
 )
-from flightmemory_to_openflight_csv.pdf_parser import _parse_airplane, _parse_seat
+from flightmemory_to_openflight_csv.html import parse_seat_cell
+from flightmemory_to_openflight_csv.pdf import _parse_airplane, _parse_seat
 
 
 def _td(html: str):

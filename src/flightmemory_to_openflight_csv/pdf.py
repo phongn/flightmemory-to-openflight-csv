@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from .convert import (
+from ._core import (
     CLASS_MAP,
     REASON_MAP,
     SEAT_TYPE_MAP,
@@ -110,7 +110,6 @@ def _parse_seat(lines: list[str]) -> tuple[str, str, str]:
 
 
 def _parse_pdf_row(row_words: list[dict]) -> Flight | None:
-    # Date and optional departure time
     date_ln = _lines(row_words, "date")
     if not date_ln:
         return None

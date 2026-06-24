@@ -11,7 +11,7 @@ requires-python = ">=3.12"
 dependencies = ["beautifulsoup4"]
 
 [project.scripts]
-flightmemory-to-openflight-csv = "flightmemory_to_openflight_csv.convert:main"
+flightmemory-to-openflight-csv = "flightmemory_to_openflight_csv.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/flightmemory_to_openflight_csv"]
