@@ -10,7 +10,7 @@ from flightmemory_to_openflight_csv._core import (
     parse_duration,
     parse_time,
 )
-from flightmemory_to_openflight_csv.html import parse_seat_cell
+from flightmemory_to_openflight_csv.html import _parse_seat_cell
 from flightmemory_to_openflight_csv.pdf import _parse_airplane, _parse_seat
 
 
@@ -104,17 +104,17 @@ class TestParseTime:
 
 
 # ---------------------------------------------------------------------------
-# parse_seat_cell
+# _parse_seat_cell
 # ---------------------------------------------------------------------------
 
 class TestParseSeatCell:
     def test_no_small_tag_returns_empty(self):
         td = _td(" / <br/>")
-        assert parse_seat_cell(td) == ("", "", "", "")
+        assert _parse_seat_cell(td) == ("", "", "", "")
 
     def test_three_line_small_no_seat(self):
         td = _td(' / <br/><small>EconomyPlus<br/>Passenger<br/>Personal</small>')
-        seat, seat_type, cls, reason = parse_seat_cell(td)
+        seat, seat_type, cls, reason = _parse_seat_cell(td)
         assert seat == ""
         assert seat_type == ""
         assert cls == "P"
@@ -122,7 +122,7 @@ class TestParseSeatCell:
 
     def test_three_line_small_with_seat_type(self):
         td = _td(' /Aisle<br/><small>EconomyPlus<br/>Passenger<br/>Personal</small>')
-        seat, seat_type, cls, reason = parse_seat_cell(td)
+        seat, seat_type, cls, reason = _parse_seat_cell(td)
         assert seat == ""
         assert seat_type == "A"
         assert cls == "P"
@@ -130,7 +130,7 @@ class TestParseSeatCell:
 
     def test_three_line_small_with_seat_number_and_type(self):
         td = _td('22B/Aisle<br/><small>EconomyPlus<br/>Passenger<br/>Personal</small>')
-        seat, seat_type, cls, reason = parse_seat_cell(td)
+        seat, seat_type, cls, reason = _parse_seat_cell(td)
         assert seat == "22B"
         assert seat_type == "A"
         assert cls == "P"
@@ -141,39 +141,39 @@ class TestParseSeatCell:
         # <small>, producing only two stripped lines: [PassengerType, Reason].
         # The reason must still be captured from the last line.
         td = _td(' / <br/><small><br/>Passenger<br/>Personal</small>')
-        seat, seat_type, cls, reason = parse_seat_cell(td)
+        seat, seat_type, cls, reason = _parse_seat_cell(td)
         assert cls == ""
         assert reason == "L"
 
     def test_business_class_and_reason(self):
         td = _td(' / <br/><small>Business<br/>Passenger<br/>Business</small>')
-        _, __, cls, reason = parse_seat_cell(td)
+        _, __, cls, reason = _parse_seat_cell(td)
         assert cls == "C"
         assert reason == "B"
 
     def test_first_class(self):
         td = _td(' / <br/><small>First<br/>Passenger<br/>Personal</small>')
-        _, __, cls, ___ = parse_seat_cell(td)
+        _, __, cls, ___ = _parse_seat_cell(td)
         assert cls == "F"
 
     def test_economy_class(self):
         td = _td(' / <br/><small>Economy<br/>Passenger<br/>Personal</small>')
-        _, __, cls, ___ = parse_seat_cell(td)
+        _, __, cls, ___ = _parse_seat_cell(td)
         assert cls == "Y"
 
     def test_window_seat_type(self):
         td = _td(' /Window<br/><small>Economy<br/>Passenger<br/>Personal</small>')
-        _, seat_type, __, ___ = parse_seat_cell(td)
+        _, seat_type, __, ___ = _parse_seat_cell(td)
         assert seat_type == "W"
 
     def test_middle_seat_type(self):
         td = _td(' /Middle<br/><small>Economy<br/>Passenger<br/>Personal</small>')
-        _, seat_type, __, ___ = parse_seat_cell(td)
+        _, seat_type, __, ___ = _parse_seat_cell(td)
         assert seat_type == "M"
 
     def test_unknown_reason_returns_empty(self):
         td = _td(' / <br/><small>Economy<br/>Passenger<br/>Unknown</small>')
-        _, __, ___, reason = parse_seat_cell(td)
+        _, __, ___, reason = _parse_seat_cell(td)
         assert reason == ""
 
 

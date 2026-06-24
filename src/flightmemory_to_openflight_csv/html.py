@@ -22,7 +22,7 @@ from ._core import (
 logger = logging.getLogger(__name__)
 
 
-def parse_seat_cell(cell) -> tuple[str, str, str, str]:
+def _parse_seat_cell(cell) -> tuple[str, str, str, str]:
     """Return (seat, seat_type, cls, reason) from the seat/class cell."""
     seat = ""
     seat_type = ""
@@ -31,12 +31,13 @@ def parse_seat_cell(cell) -> tuple[str, str, str, str]:
 
     small = cell.find("small")
     if small:
-        # Collect direct text before the first <br> tag
+        # Collect direct text before the first <br> tag. Every child here
+        # (NavigableString or Tag) exposes get_text().
         seat_raw = ""
         for child in cell.children:
             if getattr(child, "name", None) in ("br", "small"):
                 break
-            seat_raw += child.get_text() if hasattr(child, "get_text") else str(child)
+            seat_raw += child.get_text()
         seat_raw = seat_raw.strip()
 
         if "/" in seat_raw:
@@ -79,12 +80,15 @@ def _parse_flight(main_cells, dist_cells, dur_cells) -> Flight | None:
     airline = airline_lines[0] if airline_lines else ""
     flight_number = airline_lines[1] if len(airline_lines) > 1 else ""
 
+    # Aircraft lines are positional: type, then optional registration, then
+    # optional individual name. A name without a registration is unusual and
+    # would be misread as the registration (the format carries no labels).
     plane_lines = [ln.strip() for ln in main_cells[7].get_text("\n").split("\n") if ln.strip()]
     plane = plane_lines[0] if plane_lines else ""
     registration = plane_lines[1] if len(plane_lines) > 1 else ""
     plane_name = plane_lines[2] if len(plane_lines) > 2 else ""
 
-    seat, seat_type, cls, reason = parse_seat_cell(main_cells[8])
+    seat, seat_type, cls, reason = _parse_seat_cell(main_cells[8])
 
     user_note_span = main_cells[9].find("span", title=True)
     user_note = user_note_span["title"] if user_note_span else ""

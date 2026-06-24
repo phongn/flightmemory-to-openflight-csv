@@ -87,6 +87,9 @@ def _parse_airplane(lines: list[str]) -> tuple[str, str, str, str]:
         reason = REASON_MAP[remaining[-1].lower()]
         remaining = remaining[:-1]
 
+    # The remaining lines are positional: registration, then optional name.
+    # A name without a registration is unusual and would be misread as the
+    # registration (the format carries no labels to disambiguate).
     registration = remaining[0] if remaining else ""
     plane_name = " ".join(remaining[1:]) if len(remaining) > 1 else ""
     return plane, registration, plane_name, reason
