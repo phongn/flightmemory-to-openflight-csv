@@ -18,6 +18,7 @@ packages = ["src/flightmemory_to_openflight_csv"]
 
 [project.optional-dependencies]
 dev = ["pytest"]
+pdf = ["pdfplumber"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -268,16 +268,21 @@ def write_openflights_csv(flights: list[Flight], output: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Convert FlightMemory HTML exports to OpenFlights CSV."
+        description="Convert FlightMemory exports (HTML or PDF) to OpenFlights CSV."
     )
-    parser.add_argument("html_files", nargs="+", type=Path, metavar="HTML_FILE")
+    parser.add_argument("files", nargs="+", type=Path, metavar="FILE")
     parser.add_argument("-o", "--output", type=Path, default=Path("flights.csv"))
     args = parser.parse_args()
 
+    # Import here to avoid a hard dependency at module load time.
+    from .pdf_parser import parse_pdf_file
+
     all_flights: list[Flight] = []
-    for path in args.html_files:
-        flights = parse_html_file(path)
-        print(f"{path.name}: {len(flights)} flights", file=sys.stderr)
+    for path in args.files:
+        if path.suffix.lower() == ".pdf":
+            flights = parse_pdf_file(path)
+        else:
+            flights = parse_html_file(path)
         all_flights.extend(flights)
 
     all_flights.sort(key=lambda f: f["Date"], reverse=True)

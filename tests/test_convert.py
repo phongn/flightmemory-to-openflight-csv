@@ -1,4 +1,4 @@
-"""Unit tests for flightmemory_to_openflight_csv.convert."""
+"""Unit tests for flightmemory_to_openflight_csv.convert and pdf_parser."""
 
 import pytest
 from bs4 import BeautifulSoup
@@ -11,6 +11,7 @@ from flightmemory_to_openflight_csv.convert import (
     parse_seat_cell,
     parse_time,
 )
+from flightmemory_to_openflight_csv.pdf_parser import _parse_airplane, _parse_seat
 
 
 def _td(html: str):
@@ -231,3 +232,67 @@ class TestComposeNote:
             "[plane: City of Nowhere] "
             "[ratings: overall=2, dep_airport=5, arr_airport=3, airline=2, airplane=1]"
         )
+
+
+# ---------------------------------------------------------------------------
+# PDF helpers
+# ---------------------------------------------------------------------------
+
+class TestParsePdfAirplane:
+    def test_type_only(self):
+        plane, reg, name, reason = _parse_airplane(["Boeing 727"])
+        assert plane == "Boeing 727"
+        assert reg == ""
+        assert name == ""
+        assert reason == ""
+
+    def test_type_and_reason(self):
+        plane, reg, name, reason = _parse_airplane(["Boeing 727", "Personal"])
+        assert plane == "Boeing 727"
+        assert reg == ""
+        assert reason == "L"
+
+    def test_type_reg_reason(self):
+        plane, reg, name, reason = _parse_airplane(["Airbus 321", "N985JT", "Personal"])
+        assert plane == "Airbus 321"
+        assert reg == "N985JT"
+        assert name == ""
+        assert reason == "L"
+
+    def test_type_reg_name_reason(self):
+        plane, reg, name, reason = _parse_airplane(
+            ["Airbus 321", "N985JT", "City of Nowhere", "Personal"]
+        )
+        assert plane == "Airbus 321"
+        assert reg == "N985JT"
+        assert name == "City of Nowhere"
+        assert reason == "L"
+
+    def test_empty(self):
+        assert _parse_airplane([]) == ("", "", "", "")
+
+    def test_virtual_reason(self):
+        _, __, ___, reason = _parse_airplane(["Boeing 737", "Virtuell"])
+        assert reason == "O"
+
+
+class TestParsePdfSeat:
+    def test_empty(self):
+        assert _parse_seat([]) == ("", "", "")
+
+    def test_pax_role_only(self):
+        seat, seat_type, cls = _parse_seat(["Passenger"])
+        assert seat == ""
+        assert seat_type == ""
+        assert cls == ""
+
+    def test_class_and_pax(self):
+        seat, seat_type, cls = _parse_seat(["Business", "Passenger"])
+        assert cls == "C"
+        assert seat == ""
+
+    def test_seat_number_type_class_pax(self):
+        seat, seat_type, cls = _parse_seat(["22B", "Window", "Business", "Passenger"])
+        assert seat == "22B"
+        assert seat_type == "W"
+        assert cls == "C"

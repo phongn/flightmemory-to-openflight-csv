@@ -9,13 +9,15 @@ Python 3.12 or later.
 ## Installation
 
 ```bash
-pip install .
+pip install .                    # HTML support only
+pip install ".[pdf]"             # HTML + PDF support
 ```
 
-Or, if you prefer [uv](https://docs.astral.sh/uv/):
+Or with uv:
 
 ```bash
-uv sync
+uv sync                          # HTML support only
+uv sync --extra pdf              # HTML + PDF support
 ```
 
 ## Exporting from FlightMemory
@@ -27,14 +29,14 @@ uv sync
 ## Usage
 
 ```bash
-flightmemory-to-openflight-csv Page1.html Page2.html ... -o flights.csv
+flightmemory-to-openflight-csv File1.html File2.html export.pdf ... -o flights.csv
 ```
 
-All pages are merged and sorted by date (most recent first) before writing.
+HTML and PDF files can be mixed freely. All are merged and sorted by date (most recent first) before writing. File type is detected by extension.
 
 | Argument | Default | Description |
 |---|---|---|
-| `HTML_FILE ...` | *(required)* | One or more FlightMemory FlightData HTML exports |
+| `FILE ...` | *(required)* | FlightMemory FlightData HTML exports and/or PDF exports |
 | `-o / --output` | `flights.csv` | Output CSV path |
 
 ## Format compatibility
@@ -76,14 +78,14 @@ All three FlightMemory account display settings that affect the export are handl
 ## Development
 
 ```bash
-pip install ".[dev]"
+pip install ".[dev,pdf]"
 pytest
 ```
 
 Or with uv:
 
 ```bash
-uv sync --extra dev
+uv sync --extra dev --extra pdf
 uv run pytest
 ```
 
