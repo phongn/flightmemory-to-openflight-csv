@@ -5,10 +5,15 @@ from pathlib import Path
 import pytest
 from bs4 import BeautifulSoup
 
-from flightmemory_to_openflight_csv import parse_html_file
+from flightmemory_to_openflight_csv import (
+    RowParseError,
+    UnsupportedFileError,
+    parse_html_file,
+)
 from flightmemory_to_openflight_csv._core import (
     _compose_note,
     _star_rating,
+    is_recognised_date,
     normalize_distance,
     parse_date,
     parse_duration,
@@ -28,6 +33,26 @@ def _td(html: str):
 def _word(text: str, x0: float, top: float) -> dict:
     """Build a pdfplumber-style word dict (only the keys the parser reads)."""
     return {"text": text, "x0": x0, "top": top}
+
+
+# A minimal single-flight table (No. 1) used by error-path tests that mutate
+# one field; the parser locates it via the first td.liste_gross cell.
+_ONE_FLIGHT_TEMPLATE = """<table>
+<tr valign="top">
+  <td align="right" class="liste_gross">1<br/></td>
+  <td class="liste"><nobr>12-31-2024</nobr><br/><br/> </td>
+  <td class="liste_gross"><b>AAA</b><br/></td>
+  <td class="liste"><b>Alphaville</b><br/>Wonderland<br/>Alpha International</td>
+  <td class="liste_gross"><b>BBB</b><br/></td>
+  <td class="liste"><b>Betatown</b><br/>Wonderland<br/>Beta Field</td>
+  <td class="liste">Test Air<br/>123</td>
+  <td class="liste">Boeing 737</td>
+  <td class="liste">12A/Window<br/><small>Economy<br/>Passenger<br/>Personal</small></td>
+  <td class="liste"><br/><select><option value="NIL">Flight</option></select></td>
+</tr>
+<tr valign="top"><td align="right">100 </td><td>mi</td></tr>
+<tr valign="top"><td align="right">1:00 </td><td>h</td></tr>
+</table>"""
 
 
 # ---------------------------------------------------------------------------
@@ -337,12 +362,17 @@ class TestNormalizeDistance:
 
 class TestParseHtmlFile:
     def test_returns_both_flights_in_document_order(self):
-        flights = parse_html_file(FIXTURES / "sample_flightdata.html")
-        assert [f["From"] for f in flights] == ["AAA", "CCC"]
+        result = parse_html_file(FIXTURES / "sample_flightdata.html")
+        assert [f["From"] for f in result.flights] == ["AAA", "CCC"]
+
+    def test_clean_file_has_no_issues(self):
+        result = parse_html_file(FIXTURES / "sample_flightdata.html")
+        assert result.ok
+        assert result.issues == []
 
     def test_fully_populated_flight(self):
-        flights = parse_html_file(FIXTURES / "sample_flightdata.html")
-        assert flights[0] == {
+        result = parse_html_file(FIXTURES / "sample_flightdata.html")
+        assert result.flights[0] == {
             "Date": "2024-12-31 09:00",
             "From": "AAA",
             "To": "BBB",
@@ -368,8 +398,8 @@ class TestParseHtmlFile:
         }
 
     def test_sparse_flight_year_only_date_and_km(self):
-        flights = parse_html_file(FIXTURES / "sample_flightdata.html")
-        f = flights[1]
+        result = parse_html_file(FIXTURES / "sample_flightdata.html")
+        f = result.flights[1]
         assert f["Date"] == "2010"          # year-only, passed through
         assert f["Airline"] == "Budget Wings"
         assert f["Flight_Number"] == ""
@@ -379,6 +409,23 @@ class TestParseHtmlFile:
         assert f["Class"] == ""
         assert f["Plane"] == ""
         assert f["Note"] == ""
+
+    def test_non_flightmemory_file_raises(self, tmp_path):
+        wrong = tmp_path / "notflightmemory.html"
+        wrong.write_text("<html><body><p>not a flight log</p></body></html>")
+        with pytest.raises(UnsupportedFileError):
+            parse_html_file(wrong)
+
+    def test_unrecognised_date_is_reported_but_flight_kept(self, tmp_path):
+        html = _ONE_FLIGHT_TEMPLATE.replace("<nobr>12-31-2024</nobr>", "<nobr>sometime</nobr>")
+        path = tmp_path / "baddate.html"
+        path.write_text(html)
+        result = parse_html_file(path)
+        assert len(result.flights) == 1            # row kept
+        assert result.flights[0]["Date"] == "sometime"
+        assert not result.ok
+        assert "unrecognised date" in result.issues[0].message
+        assert result.issues[0].location == "flight 1"
 
 
 # ---------------------------------------------------------------------------
@@ -410,7 +457,9 @@ class TestParsePdfRow:
         ]
 
     def test_fully_populated_row(self):
-        assert _parse_pdf_row(self._fully_populated_words()) == {
+        flight, issues = _parse_pdf_row(self._fully_populated_words())
+        assert issues == []
+        assert flight == {
             "Date": "2023-12-31 22:24",
             "From": "AAA",
             "To": "BBB",
@@ -438,9 +487,28 @@ class TestParsePdfRow:
             _word("2015", 31, 100),
             _word("1,000", 251, 100), _word("km", 274, 100),
         ]
-        flight = _parse_pdf_row(words)
+        flight, _ = _parse_pdf_row(words)
         assert flight["Date"] == "2015"
         assert flight["Distance"] == "621"   # 1000 km → miles
 
-    def test_no_date_returns_none(self):
-        assert _parse_pdf_row([_word("42", 15, 100)]) is None
+    def test_no_date_raises(self):
+        with pytest.raises(RowParseError):
+            _parse_pdf_row([_word("42", 15, 100)])
+
+
+# ---------------------------------------------------------------------------
+# is_recognised_date
+# ---------------------------------------------------------------------------
+
+class TestIsRecognisedDate:
+    def test_full_date(self):
+        assert is_recognised_date("2024-12-31")
+
+    def test_year_only(self):
+        assert is_recognised_date("1988")
+
+    def test_garbage(self):
+        assert not is_recognised_date("sometime")
+
+    def test_partial(self):
+        assert not is_recognised_date("2024-12")

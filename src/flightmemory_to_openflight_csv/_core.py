@@ -2,9 +2,22 @@
 
 import csv
 import re
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import TypedDict
+
+
+class FlightMemoryError(Exception):
+    """Base class for every error raised by this library."""
+
+
+class UnsupportedFileError(FlightMemoryError):
+    """The file is not a recognisable FlightMemory export (parsing aborted)."""
+
+
+class RowParseError(FlightMemoryError):
+    """A single flight row was too malformed to parse (that row is skipped)."""
 
 FIELDNAMES = [
     "Date", "From", "To", "Flight_Number", "Airline", "Distance", "Duration",
@@ -103,6 +116,36 @@ def make_flight(
     )
 
 
+@dataclass(frozen=True)
+class ParseIssue:
+    """A non-fatal problem encountered while parsing one record.
+
+    `location` identifies the record within its source (e.g. "flight 239");
+    the source filename is supplied by the caller when reporting.
+    """
+
+    location: str
+    message: str
+
+
+@dataclass
+class ParseResult:
+    """The flights parsed from one source, plus any non-fatal issues.
+
+    A wholly unreadable or unrecognised source raises instead (see
+    UnsupportedFileError); issues here are per-record problems that did not
+    stop the rest of the file from being parsed.
+    """
+
+    flights: list[Flight]
+    issues: list[ParseIssue] = field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        """True when every record parsed without any issue."""
+        return not self.issues
+
+
 def _star_rating(cell) -> int | None:
     """Return the star rating (1–5) from the first <img> in a cell, or None."""
     img = cell.find("img")
@@ -121,6 +164,18 @@ def parse_date(s: str) -> str:
         except ValueError:
             continue
     return s  # year-only ("YYYY") — OpenFlights accepts this format
+
+
+_RECOGNISED_DATE_RE = re.compile(r"^\d{4}(-\d{2}-\d{2})?$")
+
+
+def is_recognised_date(s: str) -> bool:
+    """True if `s` is a value parse_date produced from a known format.
+
+    A bare 4-digit year or a YYYY-MM-DD date is recognised; anything else
+    is a date parse_date could not interpret and passed through verbatim.
+    """
+    return bool(_RECOGNISED_DATE_RE.match(s))
 
 
 def parse_time(s: str) -> str:
@@ -149,10 +204,17 @@ _MILES_PER_KM = 1.60934
 
 
 def normalize_distance(value: str, unit: str) -> str:
-    """Return the distance in miles. FlightMemory exports either mi or km."""
+    """Return the distance in miles. FlightMemory exports either mi or km.
+
+    A non-numeric value is passed through unchanged rather than raising, so a
+    single malformed cell never aborts a row.
+    """
     value = value.replace(",", "")
     if unit == "km" and value:
-        return str(round(float(value) / _MILES_PER_KM))
+        try:
+            return str(round(float(value) / _MILES_PER_KM))
+        except ValueError:
+            return value
     return value
 
 

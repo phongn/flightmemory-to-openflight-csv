@@ -9,7 +9,12 @@ from ._core import (
     REASON_MAP,
     SEAT_TYPE_MAP,
     Flight,
+    ParseIssue,
+    ParseResult,
+    RowParseError,
+    UnsupportedFileError,
     _compose_note,
+    is_recognised_date,
     make_flight,
     normalize_distance,
     parse_date,
@@ -113,11 +118,17 @@ def _parse_seat(lines: list[str]) -> tuple[str, str, str]:
     return seat, seat_type, cls
 
 
-def _parse_pdf_row(row_words: list[dict]) -> Flight | None:
+def _parse_pdf_row(row_words: list[dict]) -> tuple[Flight, list[ParseIssue]]:
+    """Parse one PDF flight row. Raise RowParseError if the row is unusable;
+    otherwise return the flight and a list of non-fatal field-level issues."""
+    issues: list[ParseIssue] = []
+
     date_ln = _lines(row_words, "date")
     if not date_ln:
-        return None
+        raise RowParseError("missing date")
     date = parse_date(date_ln[0])
+    if not is_recognised_date(date):
+        issues.append(ParseIssue("", f"unrecognised date {date_ln[0]!r}; kept verbatim"))
     if len(date_ln) > 1:
         dep_time = parse_time(date_ln[1])
         if dep_time:
@@ -149,7 +160,7 @@ def _parse_pdf_row(row_words: list[dict]) -> Flight | None:
 
     user_note = " ".join(_lines(row_words, "comment"))
 
-    return make_flight(
+    flight = make_flight(
         Date=date,
         From=dep,
         To=arr,
@@ -165,10 +176,15 @@ def _parse_pdf_row(row_words: list[dict]) -> Flight | None:
         Registration=registration,
         Note=_compose_note(user_note, plane_name, {}, None),
     )
+    return flight, issues
 
 
-def parse_pdf_file(path: Path) -> list[Flight]:
-    """Parse a FlightMemory PDF export and return a list of Flight records.
+def parse_pdf_file(path: Path) -> ParseResult:
+    """Parse a FlightMemory PDF export.
+
+    Raise UnsupportedFileError if no flight rows are found anywhere in the
+    document (wrong file or an unrecognised layout). Individual rows that
+    cannot be parsed are recorded as issues on the returned ParseResult.
 
     Requires the ``pdf`` optional dependency:
     ``pip install 'flightmemory-to-openflight-csv[pdf]'``
@@ -180,6 +196,8 @@ def parse_pdf_file(path: Path) -> list[Flight]:
         )
 
     flights: list[Flight] = []
+    issues: list[ParseIssue] = []
+    found_any_row = False
     no_col_lo, no_col_hi = _COLS["no"]
 
     with _pdfplumber.open(path) as pdf:
@@ -197,6 +215,7 @@ def parse_pdf_file(path: Path) -> list[Flight]:
             ]
             if not row_tops:
                 continue
+            found_any_row = True
 
             # Pair each row start with the next to bound the word block.
             row_tops_sentinel = row_tops + [_PAGE_FOOTER_TOP]
@@ -204,8 +223,25 @@ def parse_pdf_file(path: Path) -> list[Flight]:
                 row_words = [
                     w for w in data_words if start - 1 <= w["top"] < end - 1
                 ]
-                flight = _parse_pdf_row(row_words)
-                if flight:
+                no = next(
+                    (w["text"] for w in row_words
+                     if no_col_lo <= w["x0"] < no_col_hi and w["text"].isdigit()),
+                    "",
+                )
+                location = f"flight {no}" if no else f"row at y={start:.0f}"
+                try:
+                    flight, row_issues = _parse_pdf_row(row_words)
+                except RowParseError as e:
+                    issues.append(ParseIssue(location, str(e)))
+                except Exception as e:  # malformed row must not abort the file
+                    issues.append(ParseIssue(location, f"unexpected error: {e}"))
+                else:
                     flights.append(flight)
+                    issues.extend(ParseIssue(location, ri.message) for ri in row_issues)
 
-    return flights
+    if not found_any_row:
+        raise UnsupportedFileError(
+            f"{path.name}: no flight rows found (wrong file or unrecognised layout)"
+        )
+
+    return ParseResult(flights, issues)
