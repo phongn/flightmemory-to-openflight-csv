@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 from ._core import (
@@ -206,5 +205,4 @@ def parse_pdf_file(path: Path) -> list[Flight]:
                 if flight:
                     flights.append(flight)
 
-    print(f"{path.name}: {len(flights)} flights", file=sys.stderr)
     return flights

@@ -1,6 +1,7 @@
 """Command-line entry point for the FlightMemory converter."""
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
@@ -17,12 +18,16 @@ def main() -> None:
     parser.add_argument("-o", "--output", type=Path, default=Path("flights.csv"))
     args = parser.parse_args()
 
+    # Surface library warnings (e.g. an unrecognised file) on stderr.
+    logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
+
     all_flights: list[Flight] = []
     for path in args.files:
         if path.suffix.lower() == ".pdf":
             flights = parse_pdf_file(path)
         else:
             flights = parse_html_file(path)
+        print(f"{path.name}: {len(flights)} flights", file=sys.stderr)
         all_flights.extend(flights)
 
     all_flights.sort(key=lambda f: f["Date"], reverse=True)

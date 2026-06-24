@@ -1,6 +1,6 @@
 """Parse FlightMemory HTML exports into Flight records."""
 
-import sys
+import logging
 from pathlib import Path
 
 from bs4 import BeautifulSoup
@@ -18,6 +18,8 @@ from ._core import (
     parse_duration,
     parse_time,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def parse_seat_cell(cell) -> tuple[str, str, str, str]:
@@ -124,7 +126,7 @@ def parse_html_file(path: Path) -> list[Flight]:
 
     first_cell = soup.find("td", class_="liste_gross")
     if not first_cell:
-        print(f"Warning: {path.name}: no flight table found — wrong file?", file=sys.stderr)
+        logger.warning("%s: no flight table found — wrong file?", path.name)
         return []
 
     rows = first_cell.find_parent("table").find_all("tr")
